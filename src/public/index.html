@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Laboratório didático de Kubernetes com PostgreSQL" />
+    <title>Kubernetes Test Lab</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">LABORATÓRIO DIDÁTICO · NODE.JS + POSTGRESQL</p>
+          <h1>Kubernetes Test Lab</h1>
+          <p class="intro">
+            Publique uma mensagem, observe o fluxo da aplicação e acompanhe os dados persistidos no cluster.
+          </p>
+        </div>
+        <div id="api-status" class="status status-checking" role="status" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="api-status-text">Verificando API...</span>
+        </div>
+      </header>
+
+      <section class="content-grid" aria-label="Laboratório de mensagens">
+        <article class="card form-card">
+          <div class="card-heading">
+            <div>
+              <p class="section-label">01 · Enviar</p>
+              <h2>Nova mensagem</h2>
+            </div>
+            <span class="card-mark">✦</span>
+          </div>
+
+          <form id="message-form" novalidate>
+            <label for="name">Nome</label>
+            <input id="name" name="name" type="text" maxlength="100" placeholder="Seu nome" required />
+
+            <label for="message">Mensagem</label>
+            <textarea
+              id="message"
+              name="message"
+              maxlength="2000"
+              placeholder="Escreva algo para salvar no PostgreSQL..."
+              required
+            ></textarea>
+
+            <button class="primary-button" type="submit">
+              <span>Salvar mensagem</span>
+              <span aria-hidden="true">→</span>
+            </button>
+          </form>
+          <p id="feedback" class="feedback" role="alert" aria-live="polite"></p>
+        </article>
+
+        <article class="card messages-card">
+          <div class="card-heading">
+            <div>
+              <p class="section-label">02 · Persistência</p>
+              <h2>Mensagens cadastradas</h2>
+            </div>
+            <button id="refresh-button" class="secondary-button" type="button" title="Atualizar lista">
+              Atualizar <span aria-hidden="true">↻</span>
+            </button>
+          </div>
+          <div id="messages-list" class="messages-list" aria-live="polite">
+            <p class="empty-state">Carregando mensagens...</p>
+          </div>
+        </article>
+      </section>
+
+      <footer class="footer">
+        <span>k8s-test-lab</span>
+        <span class="footer-line" aria-hidden="true"></span>
+        <span>Dados gravados em PostgreSQL</span>
+      </footer>
+    </main>
+    <script src="/app.js" defer></script>
+  </body>
+</html>

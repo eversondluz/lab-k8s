@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: k8s-test-lab
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - postgres-service.yaml
+  - postgres-statefulset.yaml
+  - web-deployment.yaml
+  - web-service.yaml
