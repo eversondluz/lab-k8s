@@ -1,21 +1,21 @@
 # Kubernetes Test Lab
 
-Projeto didático completo para estudar uma aplicação web Node.js conectada a PostgreSQL dentro de um cluster Kubernetes local. A aplicação permite cadastrar e listar mensagens, exibindo a data e a hora de cada registro.
+Complete hands-on project for studying a Node.js web application connected to PostgreSQL inside a local Kubernetes cluster. The application lets users create and list messages, displaying each record's date and time.
 
-## Visão geral
+## Overview
 
-O backend usa Node.js LTS, Express e o driver `pg`. O frontend é HTML, CSS e JavaScript puro, servido pelo próprio Express. O banco cria a tabela `messages` automaticamente na inicialização e utiliza queries parametrizadas.
+The backend uses Node.js LTS, Express, and the `pg` driver. The frontend is plain HTML, CSS, and JavaScript, served by Express. The database creates the `messages` table at startup and uses parameterized queries.
 
-A estrutura foi separada em `src/app.js` e `src/server.js`: `app.js` monta a aplicação e pode ser testado sem abrir uma porta; `server.js` cuida da conexão inicial, do listener HTTP e do encerramento gracioso. Essa separação torna os testes unitários mais rápidos e evita depender de PostgreSQL durante o `npm test`.
+The structure is split between `src/app.js` and `src/server.js`: `app.js` builds the application without opening a port, while `server.js` handles the initial connection, HTTP listener, and graceful shutdown. This makes unit tests faster and avoids requiring PostgreSQL during `npm test`.
 
 ```text
-Navegador
+Browser
     │  http://localhost:8080
     ▼
 Service web:80
     │
     ├──► Pod web-1:3000 ─┐
-    └──► Pod web-2:3000 ─┤  Deployment (2 réplicas)
+    └──► Pod web-2:3000 ─┤  Deployment (2 replicas)
                          ▼
                    Service postgres:5432
                          │
@@ -26,31 +26,15 @@ Service web:80
               PVC postgres-data-postgres-0
 ```
 
-O navegador conversa apenas com o Service `web`. Os pods da aplicação usam o nome DNS interno `postgres` para chegar ao Service do banco. O StatefulSet mantém a identidade `postgres-0` e associa o volume persistente ao PVC.
+The browser talks only to the `web` Service. Application pods use the internal `postgres` DNS name to reach the database Service. The StatefulSet keeps the `postgres-0` identity and associates the persistent volume with the PVC.
 
-## Estrutura
+## Structure
 
 ```text
 .
-├── src/
-│   ├── app.js
-│   ├── database.js
-│   ├── server.js
-│   ├── routes/messages.js
-│   └── public/
-│       ├── index.html
-│       ├── style.css
-│       └── app.js
+├── src/ (app.js, database.js, server.js, routes/messages.js, public/)
 ├── tests/app.test.js
-├── k8s/
-│   ├── namespace.yaml
-│   ├── configmap.yaml
-│   ├── secret.yaml
-│   ├── postgres-service.yaml
-│   ├── postgres-statefulset.yaml
-│   ├── web-deployment.yaml
-│   ├── web-service.yaml
-│   └── kustomization.yaml
+├── k8s/ (namespace, ConfigMap, Secret, Services, StatefulSet, Deployment, Kustomize)
 ├── Dockerfile
 ├── .dockerignore
 ├── .env.example
@@ -61,37 +45,37 @@ O navegador conversa apenas com o Service `web`. Os pods da aplicação usam o n
 
 ## API
 
-| Método | Endpoint | Descrição |
-| --- | --- | --- |
-| `GET` | `/health` | Liveness simples da aplicação; não depende do banco. |
-| `GET` | `/ready` | Verifica se o PostgreSQL aceita consultas. |
-| `GET` | `/api/messages` | Lista mensagens da mais recente para a mais antiga. |
-| `POST` | `/api/messages` | Cria uma mensagem validada. |
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/health` | Simple liveness check; does not depend on the database. |
+| `GET` | `/ready` | Checks whether PostgreSQL accepts queries. |
+| `GET` | `/api/messages` | Lists messages from newest to oldest. |
+| `POST` | `/api/messages` | Creates a validated message. |
 
-Exemplo de corpo do `POST`:
+Example `POST` body:
 
 ```json
 {
   "name": "Alessandro",
-  "message": "Meu primeiro projeto Kubernetes"
+  "message": "My first Kubernetes project"
 }
 ```
 
-A resposta da listagem é `{ "messages": [...] }`; a criação retorna `201` e `{ "message": {...} }`. Nome e mensagem são obrigatórios, sofrem `trim` e têm limites de tamanho. Erros de conexão retornam `503`.
+The list response is `{ "messages": [...] }`; creation returns `201` and `{ "message": {...} }`. Name and message are required, trimmed, and subject to length limits. Connection errors return `503`.
 
-## Pré-requisitos
+## Prerequisites
 
-- Node.js LTS 22 ou superior e npm.
-- Docker Desktop em execução.
+- Node.js LTS 22 or later and npm.
+- Docker Desktop running.
 - `kubectl`.
-- Para o fluxo Kind: Kind.
-- Para o fluxo Minikube: Minikube.
+- Kind for the Kind workflow.
+- Minikube for the Minikube workflow.
 
-Os comandos abaixo funcionam no PowerShell; os comandos de `kubectl`, Docker, Kind e Minikube também são equivalentes no Linux/macOS.
+The commands below work in PowerShell; `kubectl`, Docker, Kind, and Minikube also have equivalent forms on Linux/macOS.
 
-## Validação do projeto
+## Project validation
 
-Na raiz do projeto:
+From the project root:
 
 ```bash
 npm install
@@ -101,18 +85,18 @@ docker build -t k8s-test-lab-web:local .
 kubectl apply --dry-run=client -k k8s/
 ```
 
-O `npm test` usa mocks para o banco. Assim, os testes cobrem health check, validações, inserção, listagem e erro de conexão sem exigir um PostgreSQL real.
+`npm test` uses database mocks, so tests cover health checks, validation, insertion, listing, and connection errors without requiring a real PostgreSQL instance.
 
-## Executar localmente sem Kubernetes
+## Run locally without Kubernetes
 
-Suba um PostgreSQL de laboratório em um volume Docker:
+Start a lab PostgreSQL instance in a Docker volume:
 
 ```bash
 docker volume create k8s-test-lab-postgres-data
 docker run -d --name k8s-test-lab-postgres -p 5432:5432 -e POSTGRES_DB=k8slab -e POSTGRES_USER=k8slab -e POSTGRES_PASSWORD=kubernetes-lab-password -v k8s-test-lab-postgres-data:/var/lib/postgresql/data postgres:16-alpine
 ```
 
-Em outro terminal:
+In another terminal:
 
 ```bash
 Copy-Item .env.example .env
@@ -120,17 +104,11 @@ npm install
 npm run dev
 ```
 
-Abra <http://localhost:3000>. Para parar o banco local:
+Open <http://localhost:3000>. To stop the local database, run `docker rm -f k8s-test-lab-postgres`. The volume can be kept for another run; it is not the Kubernetes PVC.
 
-```bash
-docker rm -f k8s-test-lab-postgres
-```
+## Run with Kind
 
-O volume pode ser mantido para repetir o exercício. Ele não é o PVC do Kubernetes.
-
-## Executar no Kind
-
-### 1. Criar o cluster e carregar a imagem
+### 1. Create the cluster and load the image
 
 ```bash
 kind create cluster --name k8s-test-lab
@@ -138,35 +116,28 @@ docker build -t k8s-test-lab-web:local .
 kind load docker-image k8s-test-lab-web:local --name k8s-test-lab
 ```
 
-### 2. Aplicar o laboratório
+### 2. Apply the lab
 
 ```bash
 kubectl apply -k k8s/
 kubectl get pods -n k8s-test-lab -w
-```
-
-Quando os pods estiverem prontos, confira os recursos:
-
-```bash
 kubectl get all -n k8s-test-lab
 kubectl get statefulsets -n k8s-test-lab
 kubectl get pvc -n k8s-test-lab
 kubectl rollout status deployment/web -n k8s-test-lab
 ```
 
-### 3. Abrir a aplicação
-
-Em um terminal que ficará aberto:
+### 3. Open the application
 
 ```bash
 kubectl port-forward -n k8s-test-lab service/web 8080:80
 ```
 
-Acesse <http://localhost:8080>.
+Open <http://localhost:8080>.
 
-## Executar no Minikube
+## Run with Minikube
 
-### 1. Criar o cluster e construir a imagem dentro dele
+### 1. Create the cluster and build the image inside it
 
 ```bash
 minikube start
@@ -175,7 +146,7 @@ kubectl apply -k k8s/
 kubectl get pods -n k8s-test-lab -w
 ```
 
-Se a versão do Minikube não oferecer `minikube image build`, use o Docker daemon do Minikube:
+If your Minikube version does not offer `minikube image build`, use the Minikube Docker daemon:
 
 ```bash
 minikube docker-env --shell powershell | Invoke-Expression
@@ -183,7 +154,7 @@ docker build -t k8s-test-lab-web:local .
 kubectl apply -k k8s/
 ```
 
-### 2. Verificar e abrir
+### 2. Check and open
 
 ```bash
 kubectl get all -n k8s-test-lab
@@ -192,61 +163,50 @@ kubectl rollout status deployment/web -n k8s-test-lab
 kubectl port-forward -n k8s-test-lab service/web 8080:80
 ```
 
-Acesse <http://localhost:8080>.
+Open <http://localhost:8080>.
 
-## Roteiro prático de estudo
+## Practical study guide
 
-### Inspecionar recursos e eventos
+### Inspect resources and events
 
 ```bash
 kubectl get all -n k8s-test-lab
 kubectl get pvc -n k8s-test-lab
-kubectl describe pod -n k8s-test-lab <nome-do-pod>
-kubectl describe pvc -n k8s-test-lab <nome-do-pvc>
+kubectl describe pod -n k8s-test-lab <pod-name>
+kubectl describe pvc -n k8s-test-lab <pvc-name>
 kubectl get events -n k8s-test-lab --sort-by=.lastTimestamp
 ```
 
-### Consultar logs
+### Read logs
 
 ```bash
 kubectl logs -n k8s-test-lab deployment/web --all-containers=true
 kubectl logs -n k8s-test-lab statefulset/postgres
-kubectl logs -n k8s-test-lab <nome-do-pod> -c wait-for-postgres
+kubectl logs -n k8s-test-lab <pod-name> -c wait-for-postgres
 ```
 
-### Demonstrar autorrecuperação da aplicação
+### Demonstrate self-healing
 
-Em um terminal, descubra um pod web e remova-o:
+Find and delete a web pod, then watch the Deployment recreate it:
 
 ```bash
 kubectl get pods -n k8s-test-lab -l app.kubernetes.io/name=web
-kubectl delete pod -n k8s-test-lab <pod-web>
+kubectl delete pod -n k8s-test-lab <web-pod>
 kubectl get pods -n k8s-test-lab -w
 kubectl rollout status deployment/web -n k8s-test-lab
 ```
 
-O Deployment cria outro pod para voltar às duas réplicas desejadas.
+### Demonstrate PostgreSQL persistence
 
-### Demonstrar persistência do PostgreSQL
-
-1. Publique uma mensagem pela página e anote o conteúdo.
-2. Verifique o volume:
+Publish a message, delete `postgres-0`, wait for it to return, and refresh the page. The message should remain because the StatefulSet mounts the same PVC again:
 
 ```bash
 kubectl get pvc -n k8s-test-lab
-kubectl get pods -n k8s-test-lab -l app.kubernetes.io/name=postgres
-```
-
-3. Exclua o pod do banco:
-
-```bash
 kubectl delete pod -n k8s-test-lab postgres-0
 kubectl get pods -n k8s-test-lab -w
 ```
 
-4. Faça o port-forward novamente, se necessário, e atualize a página. A mensagem deve continuar presente porque o StatefulSet remonta o mesmo PVC.
-
-### Escalar e reduzir a aplicação
+### Scale the application
 
 ```bash
 kubectl scale deployment/web -n k8s-test-lab --replicas=3
@@ -254,11 +214,9 @@ kubectl get pods -n k8s-test-lab -l app.kubernetes.io/name=web
 kubectl scale deployment/web -n k8s-test-lab --replicas=2
 ```
 
-O banco permanece com uma réplica: este laboratório não implementa replicação ou alta disponibilidade do PostgreSQL.
+The database remains at one replica; this lab does not implement PostgreSQL replication or high availability.
 
-### Atualizar a imagem e acompanhar o rollout
-
-Use uma tag nova para que a mudança seja observável:
+### Update the image and watch the rollout
 
 ```bash
 docker build -t k8s-test-lab-web:v2 .
@@ -268,63 +226,63 @@ kubectl rollout status deployment/web -n k8s-test-lab
 kubectl rollout history deployment/web -n k8s-test-lab
 ```
 
-No Minikube, carregue a nova tag com `minikube image build -t k8s-test-lab-web:v2 .` antes do `kubectl set image`.
+On Minikube, use `minikube image build -t k8s-test-lab-web:v2 .` before `kubectl set image`.
 
-## Explicação dos recursos Kubernetes
+## Kubernetes resources explained
 
-- **Namespace**: isola todos os recursos do laboratório em `k8s-test-lab`.
-- **ConfigMaps**: guardam configurações não sensíveis do PostgreSQL e da aplicação, como nome do banco, host e porta.
-- **Secret**: fornece a senha do banco aos dois workloads. O arquivo contém uma senha explícita de laboratório e não deve ser tratado como um segredo seguro em produção.
-- **Service `postgres`**: oferece DNS estável e acesso interno na porta 5432.
-- **StatefulSet `postgres`**: executa uma réplica com identidade estável e cria um PVC por pod.
-- **PVC**: solicita 1 GiB de armazenamento persistente para `/var/lib/postgresql/data`.
-- **Deployment `web`**: mantém duas réplicas e executa atualizações com `RollingUpdate`.
-- **Service `web`**: expõe a aplicação internamente na porta 80 e encaminha para 3000.
-- **Probes**: `/health` mede se o processo web está vivo; `/ready` só fica pronto quando o banco responde. O PostgreSQL usa `pg_isready` nas duas probes.
-- **initContainer**: espera o DNS/Service do PostgreSQL aceitar conexões antes de iniciar o container web.
+- **Namespace**: isolates all lab resources in `k8s-test-lab`.
+- **ConfigMaps**: store non-sensitive PostgreSQL and application settings, such as database name, host, and port.
+- **Secret**: provides the database password to both workloads. It contains an explicit lab password and must not be treated as a production secret.
+- **Service `postgres`**: provides stable DNS and internal access on port 5432.
+- **StatefulSet `postgres`**: runs one replica with stable identity and creates a PVC per pod.
+- **PVC**: requests 1 GiB of persistent storage for `/var/lib/postgresql/data`.
+- **Deployment `web`**: maintains two replicas and performs `RollingUpdate` deployments.
+- **Service `web`**: exposes the application internally on port 80 and forwards to port 3000.
+- **Probes**: `/health` measures whether the web process is alive; `/ready` becomes ready only when the database responds. PostgreSQL uses `pg_isready` for both probes.
+- **initContainer**: waits for the PostgreSQL DNS/Service to accept connections before starting the web container.
 
-### Deployment e StatefulSet neste projeto
+### Deployment and StatefulSet in this project
 
-O Deployment é adequado para os pods web porque são réplicas intercambiáveis, sem identidade ou disco próprio. O StatefulSet é usado para o PostgreSQL porque mantém uma identidade previsível (`postgres-0`) e vincula o armazenamento ao pod por meio do volumeClaimTemplate.
+The Deployment is appropriate for interchangeable web replicas with no identity or dedicated disk. The StatefulSet is used for PostgreSQL because it maintains the predictable `postgres-0` identity and binds storage through the volumeClaimTemplate.
 
-### ConfigMap e Secret
+### ConfigMap and Secret
 
-ConfigMap é indicado para valores que não precisam de confidencialidade. Secret é a abstração Kubernetes para valores sensíveis, mas o conteúdo ainda deve ser protegido no controle de origem, no RBAC e no armazenamento do cluster. A senha deste exercício está em `stringData` apenas para tornar o laboratório reproduzível.
+ConfigMap is appropriate for values that do not need confidentiality. Secret is the Kubernetes abstraction for sensitive values, but it must still be protected in source control, RBAC, and cluster storage. The exercise password is in `stringData` only to keep the lab reproducible.
 
 ## Troubleshooting
 
-### Pod web preso em `Init:0/1`
+### Web pod stuck at `Init:0/1`
 
 ```bash
 kubectl get pods -n k8s-test-lab
-kubectl describe pod -n k8s-test-lab <pod-web>
-kubectl logs -n k8s-test-lab <pod-web> -c wait-for-postgres
+kubectl describe pod -n k8s-test-lab <web-pod>
+kubectl logs -n k8s-test-lab <web-pod> -c wait-for-postgres
 kubectl get svc,endpoints -n k8s-test-lab postgres
 ```
 
-Confira se o pod `postgres-0` está `Ready`, se o Service se chama exatamente `postgres` e se o banco tem endpoint.
+Check that `postgres-0` is `Ready`, the Service is named exactly `postgres`, and the database has an endpoint.
 
-### `ImagePullBackOff` no pod web
+### `ImagePullBackOff` on the web pod
 
-A imagem local precisa existir dentro do ambiente do cluster:
+The local image must exist inside the cluster environment:
 
 ```bash
 docker images k8s-test-lab-web
 kind load docker-image k8s-test-lab-web:local --name k8s-test-lab
 ```
 
-No Minikube, prefira `minikube image build` ou o `docker-env` descrito acima. Depois, recrie os pods ou faça um rollout.
+On Minikube, prefer `minikube image build` or the `docker-env` workflow above. Then recreate the pods or perform a rollout.
 
-### PVC em `Pending`
+### PVC in `Pending`
 
 ```bash
 kubectl get storageclass
-kubectl describe pvc -n k8s-test-lab <nome-do-pvc>
+kubectl describe pvc -n k8s-test-lab <pvc-name>
 ```
 
-O cluster local precisa ter uma StorageClass padrão. Reinicie o Minikube/Kind ou configure uma StorageClass compatível se ela não existir.
+The local cluster needs a default StorageClass. Restart Minikube/Kind or configure a compatible StorageClass if none exists.
 
-### A aplicação retorna `503`
+### The application returns `503`
 
 ```bash
 kubectl get pods -n k8s-test-lab
@@ -333,24 +291,19 @@ kubectl logs -n k8s-test-lab statefulset/postgres
 kubectl get configmap,secret -n k8s-test-lab
 ```
 
-Verifique especialmente `DB_HOST=postgres`, `DB_PORT=5432`, o nome do banco e a senha. Os nomes usados no ConfigMap correspondem ao Service e às chaves dos manifests.
+Pay particular attention to `DB_HOST=postgres`, `DB_PORT=5432`, the database name, and the password.
 
-## Remover o laboratório
+## Remove the lab
 
 ```bash
 kubectl delete -k k8s/
-```
-
-Como o Namespace também faz parte do Kustomize, os recursos namespaced, inclusive o PVC, serão removidos junto com ele. Para apagar também o cluster local:
-
-```bash
 kind delete cluster --name k8s-test-lab
 ```
 
-No Minikube, use `minikube delete` apenas quando quiser remover o cluster inteiro.
+Because the Namespace is part of Kustomize, namespaced resources, including the PVC, are removed with it. On Minikube, use `minikube delete` only when you want to remove the entire cluster.
 
-## Limitações e melhorias para produção
+## Limitations and production improvements
 
-Este é um laboratório de aprendizagem. Ele não oferece TLS/Ingress, autenticação, autorização, migrações versionadas, backup, criptografia gerenciada, alta disponibilidade do PostgreSQL, autoscaling, observabilidade centralizada, NetworkPolicy ou rotação de segredos. A senha no manifest é deliberadamente didática.
+This is a learning lab. It does not provide TLS/Ingress, authentication, authorization, versioned migrations, backups, managed encryption, PostgreSQL high availability, autoscaling, centralized observability, NetworkPolicy, or secret rotation. The password in the manifest is intentionally didactic.
 
-Para produção, use um PostgreSQL gerenciado ou um operador, backups testados e replicação; Secret Manager/Vault e RBAC mínimo; imagens imutáveis assinadas e scanner de vulnerabilidades; Ingress com TLS; NetworkPolicies; PodDisruptionBudget; HPA; métricas, logs estruturados e tracing; migrações controladas; limites revisados com métricas reais; e processos de recuperação de desastre documentados.
+For production, use a managed PostgreSQL service or operator, tested backups and replication; Secret Manager/Vault and least-privilege RBAC; signed immutable images and vulnerability scanning; TLS-enabled Ingress; NetworkPolicies; PodDisruptionBudget; HPA; metrics, structured logs, and tracing; controlled migrations; limits reviewed against real metrics; and documented disaster-recovery processes.
