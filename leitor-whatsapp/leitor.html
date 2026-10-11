@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitor de Conversa WhatsApp</title>
+<!--
+  Leitor local de conversas exportadas do WhatsApp.
+  Arquivo único, sem servidor, sem internet, sem bibliotecas externas.
+  Nada sai do seu computador: tudo é lido pelo próprio navegador.
+-->
+<style>
+:root{
+  --bg:#efeae2;--panel:#fff;--hdr:#008069;--hdr-fg:#fff;--me:#d9fdd3;--ot:#fff;
+  --tx:#111b21;--sub:#667781;--line:#e9edef;--sys:#fff3c5;--acc:#008069;--shadow:0 1px .5px rgba(11,20,26,.13);
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0b141a;--panel:#111b21;--hdr:#202c33;--hdr-fg:#e9edef;--me:#005c4b;--ot:#202c33;
+    --tx:#e9edef;--sub:#8696a0;--line:#222d34;--sys:#182229;--acc:#00a884}
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--tx)}
+[hidden]{display:none!important}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+.btn{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:10px 16px;font-weight:600}
+.btn.ghost{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+
+/* Tela inicial */
+#welcome{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px}
+#drop{max-width:620px;width:100%;background:var(--panel);border:2px dashed var(--sub);border-radius:16px;padding:32px 28px;text-align:center;box-shadow:var(--shadow)}
+#drop.over{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 8%,var(--panel))}
+#drop h1{margin:0 0 6px;font-size:24px}
+#drop p{margin:8px 0;color:var(--sub)}
+#drop .row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:20px 0 8px}
+#drop ol{text-align:left;color:var(--sub);margin:16px auto 0;max-width:460px;padding-left:20px}
+#status{margin-top:14px;font-weight:600;min-height:1.4em}
+#status.err{color:#d33}
+
+/* App */
+#app{height:100vh;height:100dvh;display:flex;flex-direction:column}
+header{background:var(--hdr);color:var(--hdr-fg);display:flex;align-items:center;gap:10px;padding:8px 12px;flex-wrap:wrap}
+.av{width:40px;height:40px;border-radius:50%;background:var(--acc);display:grid;place-items:center;font-weight:700;color:#fff;flex:none}
+.ttl{flex:1;min-width:140px;overflow:hidden}
+.ttl b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ttl small{opacity:.8}
+header select,header input[type=date]{background:rgba(255,255,255,.15);color:inherit;border:0;border-radius:6px;padding:6px 8px;max-width:150px}
+header select option{color:#111}
+header button{background:rgba(255,255,255,.15);color:inherit;border:0;border-radius:6px;padding:7px 10px}
+header label{font-size:13px;display:flex;align-items:center;gap:4px}
+#main{flex:1;display:flex;min-height:0}
+#msgs{flex:1;overflow-y:auto;overflow-anchor:none;padding:12px 8px 24px;outline:none}
+.w{display:flex;flex-direction:column}
+.sep{align-self:center;background:var(--panel);color:var(--sub);font-size:12.5px;padding:4px 12px;border-radius:8px;margin:12px 0 8px;box-shadow:var(--shadow)}
+.sys{align-self:center;background:var(--sys);color:var(--sub);font-size:12.5px;padding:4px 12px;border-radius:8px;margin:6px 0;max-width:80%;text-align:center;white-space:pre-wrap}
+.b{max-width:min(75%,560px);padding:6px 8px 4px;border-radius:8px;margin:2px 0;box-shadow:var(--shadow);word-wrap:break-word;overflow-wrap:anywhere;position:relative}
+.b.me{align-self:flex-end;background:var(--me);border-top-right-radius:0}
+.b.ot{align-self:flex-start;background:var(--ot);border-top-left-radius:0}
+.b.stk{background:transparent;box-shadow:none}
+.nm{font-size:12.8px;font-weight:600;margin-bottom:2px}
+.tx{white-space:pre-wrap}
+.tx a{color:#0a7cff;word-break:break-all}
+.tx code{font-family:ui-monospace,Consolas,monospace;background:rgba(127,127,127,.18);padding:0 3px;border-radius:3px}
+.tm{font-size:11px;color:var(--sub);text-align:right;margin-top:2px;margin-left:12px;float:right;padding-top:3px}
+.b::after{content:"";display:block;clear:both}
+.media{margin-bottom:4px}
+.media img,.media video{display:block;max-width:100%;max-height:340px;border-radius:6px;cursor:zoom-in;background:rgba(127,127,127,.15);min-width:140px;min-height:100px;object-fit:contain}
+.media.stk img{max-height:170px;min-width:0;min-height:0;background:none;cursor:default}
+.media video{cursor:auto}
+.media audio{width:260px;max-width:100%}
+.doc,.miss{display:flex;gap:8px;align-items:center;padding:8px 10px;border-radius:6px;background:rgba(127,127,127,.15);font-size:13.5px;color:inherit;text-decoration:none;cursor:pointer;word-break:break-all}
+.miss{cursor:default;color:var(--sub);font-style:italic}
+.flash{animation:fl 1.8s ease-out}
+@keyframes fl{0%,40%{outline:3px solid var(--acc);outline-offset:2px}100%{outline:3px solid transparent}}
+
+/* Painel de busca */
+#panel{width:380px;max-width:100%;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+#panel .top{padding:10px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--line)}
+#panel .top .line{display:flex;gap:6px}
+#panel input,#panel select{flex:1;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 8px}
+#cnt{font-size:12.5px;color:var(--sub)}
+#res{flex:1;overflow-y:auto}
+.r{display:flex;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line);cursor:pointer;align-items:center}
+.r:hover{background:color-mix(in srgb,var(--acc) 10%,transparent)}
+.r .t{flex:1;min-width:0}
+.r .h{font-size:12px;color:var(--sub)}
+.r .s{overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:pre-wrap;word-break:break-word}
+.r img,.r video{width:56px;height:56px;object-fit:cover;border-radius:6px;flex:none;background:rgba(127,127,127,.2)}
+mark{background:#ffe066;color:#111;border-radius:2px}
+#res.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:3px;align-content:start}
+#res.grid .r{padding:0;border:0;aspect-ratio:1;position:relative}
+#res.grid .r .t{display:none}
+#res.grid .r img,#res.grid .r video{width:100%;height:100%;border-radius:0}
+@media (max-width:760px){
+  #panel{position:fixed;inset:0;z-index:5;width:100%}
+  .b{max-width:90%}
+  header select,header input[type=date]{max-width:110px}
+}
+
+/* Lightbox e diálogo */
+#lb,#dlg{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:16px}
+#lb img,#lb video{max-width:96vw;max-height:92vh;border-radius:4px}
+#lbx{position:absolute;top:12px;right:16px;background:rgba(255,255,255,.2);color:#fff;border:0;border-radius:50%;width:40px;height:40px;font-size:20px}
+#dlg .card{background:var(--panel);border-radius:14px;padding:22px;max-width:420px;width:100%}
+#dlg h2{margin:0 0 6px;font-size:18px}
+#dlg p{margin:0 0 14px;color:var(--sub)}
+#dlg button{display:block;width:100%;margin:6px 0;text-align:left}
+</style>
+</head>
+<body>
+
+<div id="welcome">
+  <div id="drop">
+    <h1>📱 Leitor de conversa do WhatsApp</h1>
+    <p>Funciona 100% offline, direto neste arquivo. Nada é enviado para lugar nenhum.</p>
+    <div class="row">
+      <button class="btn" id="bZip">Selecionar arquivo .zip</button>
+      <button class="btn ghost" id="bDir">Selecionar pasta</button>
+      <button class="btn ghost" id="bFiles">Selecionar arquivos soltos</button>
+    </div>
+    <p>ou arraste o .zip, a pasta ou os arquivos para esta caixa</p>
+    <div id="status" role="status"></div>
+    <ol>
+      <li>No WhatsApp: conversa › menu › Mais › Exportar conversa › <b>Incluir mídia</b>.</li>
+      <li>Copie o .zip para o computador. Pode abrir o .zip direto aqui, sem descompactar.</li>
+      <li>Para zips muito grandes, descompacte e use "Selecionar pasta".</li>
+    </ol>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <div class="av" id="av">?</div>
+    <div class="ttl"><b id="title"></b><small id="subt"></small></div>
+    <label>Eu: <select id="me" title="Quem é você (mensagens à direita)"></select></label>
+    <input type="date" id="jump" title="Ir para uma data">
+    <button id="bSearch" title="Buscar e filtrar">🔍 Buscar</button>
+    <button id="bNew" title="Abrir outra conversa">Abrir outra</button>
+  </header>
+  <div id="main">
+    <div id="msgs" tabindex="0"></div>
+    <aside id="panel" hidden>
+      <div class="top">
+        <div class="line">
+          <input id="q" type="search" placeholder="Buscar mensagens…" autocomplete="off">
+          <button id="pClose" class="btn ghost" title="Fechar">✕</button>
+        </div>
+        <div class="line">
+          <select id="fWho"></select>
+          <select id="fType">
+            <option value="all">Tudo</option>
+            <option value="text">Só texto</option>
+            <option value="image">Fotos</option>
+            <option value="video">Vídeos</option>
+            <option value="audio">Áudios</option>
+            <option value="sticker">Figurinhas</option>
+            <option value="doc">Documentos</option>
+            <option value="link">Links</option>
+          </select>
+        </div>
+        <div class="line">
+          <input id="fFrom" type="date" title="De">
+          <input id="fTo" type="date" title="Até">
+        </div>
+        <div id="cnt"></div>
+      </div>
+      <div id="res"></div>
+    </aside>
+  </div>
+</div>
+
+<div id="lb" hidden><button id="lbx" title="Fechar">✕</button><div id="lbc"></div></div>
+<div id="dlg" hidden><div class="card"><h2>Quem é você nesta conversa?</h2><p>Suas mensagens ficam à direita. Você pode trocar depois no topo.</p><div id="dlgb"></div></div></div>
+
+<input type="file" id="iZip" accept=".zip,application/zip" hidden>
+<input type="file" id="iDir" webkitdirectory hidden>
+<input type="file" id="iFiles" multiple hidden>
+
+<script>
+'use strict';
+(() => {
+const $ = s => document.querySelector(s);
+const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+const esc = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const nkey = n => n.normalize('NFC').toLowerCase();
+const pad = n => String(n).padStart(2, '0');
+const CH = 200, MAXW = 1000;
+
+const state = { msgs: [], senders: [], me: null, title: '', start: 0, end: 0 };
+const sources = new Map();
+const box = $('#msgs');
+
+/* ---------- MIME / tipo de arquivo ---------- */
+const MIME = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', heic: 'image/heic', bmp: 'image/bmp',
+  mp4: 'video/mp4', mov: 'video/quicktime', '3gp': 'video/3gpp', webm: 'video/webm', mkv: 'video/x-matroska', avi: 'video/x-msvideo',
+  opus: 'audio/ogg', ogg: 'audio/ogg', mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', wav: 'audio/wav', amr: 'audio/amr', pdf: 'application/pdf', vcf: 'text/vcard', txt: 'text/plain' };
+const ext = n => (n.split('.').pop() || '').toLowerCase();
+const mime = n => MIME[ext(n)] || 'application/octet-stream';
+function kindOf(name) {
+  const e = ext(name);
+  if (e === 'webp' && /STK|sticker|figurinha/i.test(name)) return 'sticker';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'bmp'].includes(e)) return 'image';
+  if (['mp4', 'mov', '3gp', 'webm', 'mkv', 'avi'].includes(e)) return 'video';
+  if (['opus', 'ogg', 'mp3', 'm4a', 'aac', 'wav', 'amr'].includes(e)) return 'audio';
+  return 'doc';
+}
+
+/* ---------- Fontes de arquivos (pasta, soltos ou zip) ---------- */
+function addSource(name, size, getBlob) { sources.set(nkey(name), { name, size, getBlob, url: null }); }
+function addFile(file) {
+  if (file.name.startsWith('.')) return;
+  addSource(file.name, file.size, async () => (file.type ? file : file.slice(0, file.size, mime(file.name))));
+}
+function getUrl(name) {
+  const s = sources.get(nkey(name));
+  if (!s) return Promise.reject(new Error('ausente'));
+  if (!s.url) s.url = s.getBlob().then(b => URL.createObjectURL(b));
+  return s.url;
+}
+
+/* ---------- Leitor mínimo de ZIP (sem bibliotecas) ---------- */
+async function addZip(file) {
+  if (typeof DecompressionStream === 'undefined') throw new Error('Este navegador não suporta ler .zip. Use Chrome, Edge ou Firefox atualizados, ou descompacte e selecione a pasta.');
+  const tailLen = Math.min(file.size, 66000);
+  const tail = new DataView(await file.slice(file.size - tailLen).arrayBuffer());
+  let p = tailLen - 22;
+  while (p >= 0 && tail.getUint32(p, true) !== 0x06054b50) p--;
+  if (p < 0) throw new Error('Arquivo .zip inválido ou corrompido.');
+  let count = tail.getUint16(p + 10, true), cdSize = tail.getUint32(p + 12, true), cdOff = tail.getUint32(p + 16, true);
+  if (count === 0xffff || cdOff === 0xffffffff) {
+    if (p < 20 || tail.getUint32(p - 20, true) !== 0x07064b50) throw new Error('ZIP64 não reconhecido. Descompacte e use "Selecionar pasta".');
+    const z64off = Number(tail.getBigUint64(p - 20 + 8, true));
+    const z = new DataView(await file.slice(z64off, z64off + 56).arrayBuffer());
+    count = Number(z.getBigUint64(32, true)); cdSize = Number(z.getBigUint64(40, true)); cdOff = Number(z.getBigUint64(48, true));
+  }
+  const cd = new DataView(await file.slice(cdOff, cdOff + cdSize).arrayBuffer());
+  const dec = new TextDecoder('utf-8');
+  let o = 0;
+  for (let i = 0; i < count && o + 46 <= cd.byteLength; i++) {
+    if (cd.getUint32(o, true) !== 0x02014b50) break;
+    const method = cd.getUint16(o + 10, true);
+    let csize = cd.getUint32(o + 20, true), usize = cd.getUint32(o + 24, true), lho = cd.getUint32(o + 42, true);
+    const nl = cd.getUint16(o + 28, true), xl = cd.getUint16(o + 30, true), cl = cd.getUint16(o + 32, true);
+    const full = dec.decode(new Uint8Array(cd.buffer, o + 46, nl));
+    if (usize === 0xffffffff || csize === 0xffffffff || lho === 0xffffffff) {
+      let x = o + 46 + nl; const xe = x + xl;
+      while (x + 4 <= xe) {
+        const id = cd.getUint16(x, true), sz = cd.getUint16(x + 2, true);
+        if (id === 1) {
+          let q = x + 4;
+          if (usize === 0xffffffff) { usize = Number(cd.getBigUint64(q, true)); q += 8; }
+          if (csize === 0xffffffff) { csize = Number(cd.getBigUint64(q, true)); q += 8; }
+          if (lho === 0xffffffff) { lho = Number(cd.getBigUint64(q, true)); }
+        }
+        x += 4 + sz;
+      }
+    }
+    o += 46 + nl + xl + cl;
+    if (full.endsWith('/') || full.startsWith('__MACOSX/')) continue;
+    const base = full.split('/').pop();
+    if (!base || base.startsWith('.')) continue;
+    const entry = { method, csize, lho };
+    addSource(base, usize, () => zipBlob(file, entry, base));
+  }
+}
+async function zipBlob(file, e, name) {
+  const lh = new DataView(await file.slice(e.lho, e.lho + 30).arrayBuffer());
+  const start = e.lho + 30 + lh.getUint16(26, true) + lh.getUint16(28, true);
+  const raw = file.slice(start, start + e.csize);
+  if (e.method === 0) return new Blob([raw], { type: mime(name) });
+  if (e.method !== 8) throw new Error('Compressão de ZIP não suportada em ' + name);
+  const out = await new Response(raw.stream().pipeThrough(new DecompressionStream('deflate-raw'))).blob();
+  return new Blob([out], { type: mime(name) });
+}
+
+/* ---------- Parser do chat ---------- */
+const RE_IOS = /^\[(\d{1,4}[\/.\-]\d{1,2}[\/.\-]\d{1,4}),?\s+(\d{1,2}[:.]\d{2}(?:[:.]\d{2})?)\s?([ap]\.?\s?m\.?)?\]\s?(.*)$/i;
+const RE_AND = /^(\d{1,4}[\/.\-]\d{1,2}[\/.\-]\d{1,4}),?\s+(?:às\s+|a las\s+)?(\d{1,2}[:.]\d{2}(?:[:.]\d{2})?)\s?([ap]\.?\s?m\.?)?\s?[-–—]\s(.*)$/i;
+const RE_ATT1 = /<(?:anexo|attached|adjunto|anhang|fichier joint|pièce jointe|allegato|bijlage)\s*:\s*([^>]+)>/i;
+const RE_ATT2 = /^(.+?\.[A-Za-z0-9]{2,5}) \((?:arquivo anexado|file attached|archivo adjunto|Datei angehängt|fichier joint|file allegato|bijgevoegd)\)/i;
+const RE_OMIT = /^<[^>]*(?:oculta|omitted|omitido|omise|ausgeschlossen|omessa)[^>]*>$/i;
+
+function parseChat(raw) {
+  const lines = raw.replace(/^﻿/, '').split(/\r\n|\n|\r/)
+    .map(l => l.replace(/[‎‏‪-‮]/g, '').replace(/[  ]/g, ' '));
+  let ios = 0, and = 0;
+  for (const l of lines.slice(0, 500)) { if (RE_IOS.test(l)) ios++; else if (RE_AND.test(l)) and++; }
+  const re = ios > and ? RE_IOS : RE_AND;
+  const recs = []; let cur = null;
+  for (const l of lines) {
+    const m = re.exec(l);
+    if (m) { cur = { d: m[1], t: m[2], ap: m[3], body: m[4] }; recs.push(cur); }
+    else if (cur) cur.body += '\n' + l;
+  }
+  let dmy = false, mdy = false;
+  for (const r of recs) {
+    const p = r.d.split(/[\/.\-]/).map(Number);
+    if (p[0] > 31) continue;
+    if (p[0] > 12) dmy = true;
+    if (p[1] > 12) mdy = true;
+  }
+  const useMdy = mdy && !dmy;
+  const msgs = [];
+  for (const r of recs) {
+    const p = r.d.split(/[\/.\-]/).map(Number);
+    let y, mo, d;
+    if (p[0] > 31) [y, mo, d] = p; else { y = p[2] < 100 ? 2000 + p[2] : p[2]; [d, mo] = useMdy ? [p[1], p[0]] : [p[0], p[1]]; }
+    const tp = r.t.split(/[:.]/).map(Number);
+    let h = tp[0];
+    if (r.ap) { if (/p/i.test(r.ap) && h < 12) h += 12; else if (/a/i.test(r.ap) && h === 12) h = 0; }
+    const ts = new Date(y, mo - 1, d, h, tp[1], tp[2] || 0).getTime();
+    const body = r.body.replace(/\s+$/, '');
+    let sender = null, text = body;
+    const k = body.indexOf(': '), nl = body.indexOf('\n');
+    if (k > 0 && k <= 80 && (nl < 0 || k < nl)) { sender = body.slice(0, k); text = body.slice(k + 2); }
+    msgs.push(classify({ ts, day: y * 10000 + mo * 100 + d, sender, text, sys: sender === null }));
+  }
+  return msgs;
+}
+function classify(m) {
+  const t = m.text;
+  m.type = 'text'; m.caption = t; m.media = null;
+  if (m.sys) { m.type = 'sys'; return m; }
+  let mt = RE_ATT1.exec(t), name = null;
+  if (mt) { name = mt[1].trim(); m.caption = (t.slice(0, mt.index) + t.slice(mt.index + mt[0].length)).trim(); }
+  else if ((mt = RE_ATT2.exec(t))) { name = mt[1].trim(); m.caption = t.slice(mt[0].length).trim(); }
+  else {
+    const first = t.split('\n')[0].trim();
+    if (first && sources.has(nkey(first))) { name = first; m.caption = t.slice(first.length).trim(); }
+  }
+  if (name) { m.media = { name, kind: kindOf(name) }; m.type = m.media.kind; }
+  else if (RE_OMIT.test(t.trim())) { m.type = 'omitted'; m.caption = ''; }
+  m.link = /https?:\/\//i.test(t);
+  return m;
+}
+
+/* ---------- Formatação de texto ---------- */
+function fmt(text) {
+  return text.split(/(https?:\/\/[^\s]*[^\s.,;:!?)\]"'])/i).map((seg, i) => i % 2
+    ? `<a href="${esc(seg)}" target="_blank" rel="noopener noreferrer">${esc(seg)}</a>`
+    : esc(seg)
+      .replace(/```([\s\S]+?)```/g, '<code>$1</code>')
+      .replace(/(^|[^\w*])\*([^\s*](?:[^*\n]*[^\s*])?)\*(?![\w*])/g, '$1<b>$2</b>')
+      .replace(/(^|[^\w_])_([^\s_](?:[^_\n]*[^\s_])?)_(?![\w_])/g, '$1<i>$2</i>')
+      .replace(/(^|[^\w~])~([^\s~](?:[^~\n]*[^\s~])?)~(?![\w~])/g, '$1<s>$2</s>')
+  ).join('');
+}
+const hue = s => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360; return h; };
+const fmtDay = ts => { const t = new Date(ts).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); return t[0].toUpperCase() + t.slice(1); };
+const fmtTime = ts => { const d = new Date(ts); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+const fmtSize = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+
+/* ---------- Carregamento preguiçoso de mídia ---------- */
+const io = new IntersectionObserver(entries => {
+  for (const en of entries) if (en.isIntersecting) { io.unobserve(en.target); if (en.target._load) en.target._load(); }
+}, { root: null, rootMargin: '600px' });
+function lazy(node, fn) { node._load = fn; io.observe(node); }
+
+function docLink(name, label) {
+  const a = el('div', 'doc');
+  a.append(el('span', '', '📄'), el('span', '', label || name));
+  a.onclick = async () => {
+    try {
+      const u = await getUrl(name), l = document.createElement('a');
+      l.href = u; if (ext(name) === 'pdf') l.target = '_blank'; else l.download = name;
+      document.body.append(l); l.click(); l.remove();
+    } catch { alert('Não foi possível abrir ' + name); }
+  };
+  return a;
+}
+function mediaEl(m) {
+  const { name, kind } = m.media;
+  const s = sources.get(nkey(name));
+  if (!s) return el('div', 'miss', '📎 ' + name + ' (arquivo não encontrado no export)');
+  const wrap = el('div', 'media' + (kind === 'sticker' ? ' stk' : ''));
+  const fallback = () => wrap.replaceChildren(docLink(name, name + ' (' + fmtSize(s.size) + ')'));
+  if (kind === 'image' || kind === 'sticker') {
+    const img = new Image(); img.alt = name; img.loading = 'lazy';
+    img.onerror = fallback;
+    if (kind === 'image') img.onclick = () => openLightbox('image', name);
+    wrap.append(img);
+    lazy(wrap, () => getUrl(name).then(u => { img.src = u; }).catch(fallback));
+  } else if (kind === 'video') {
+    const v = document.createElement('video'); v.controls = true; v.preload = 'metadata';
+    wrap.append(v);
+    lazy(wrap, () => getUrl(name).then(u => { v.src = u + '#t=0.1'; }).catch(fallback));
+  } else if (kind === 'audio') {
+    const a = document.createElement('audio'); a.controls = true; a.preload = 'none';
+    a.onerror = fallback;
+    wrap.append(a);
+    lazy(wrap, () => getUrl(name).then(u => { a.src = u; }).catch(fallback));
+  } else {
+    return docLink(name, name + ' (' + fmtSize(s.size) + ')');
+  }
+  return wrap;
+}
+
+/* ---------- Renderização das mensagens ---------- */
+function buildMsg(i) {
+  const m = state.msgs[i], prev = state.msgs[i - 1];
+  const w = el('div', 'w'); w.dataset.i = i;
+  if (!prev || prev.day !== m.day) w.append(el('div', 'sep', fmtDay(m.ts)));
+  if (m.sys) { w.append(el('div', 'sys', m.text)); return w; }
+  const mine = m.sender === state.me;
+  const b = el('div', 'b ' + (mine ? 'me' : 'ot') + (m.type === 'sticker' ? ' stk' : ''));
+  if (!mine && state.senders.length > 2 && (!prev || prev.sender !== m.sender || prev.day !== m.day)) {
+    const n = el('div', 'nm', m.sender); n.style.color = `hsl(${hue(m.sender)} 60% 45%)`; b.append(n);
+  }
+  if (m.media) b.append(mediaEl(m));
+  else if (m.type === 'omitted') b.append(el('div', 'miss', '📎 Mídia não incluída no export'));
+  if (m.caption) { const t = el('div', 'tx'); t.innerHTML = fmt(m.caption); b.append(t); }
+  b.append(el('div', 'tm', fmtTime(m.ts)));
+  w.append(b);
+  return w;
+}
+function range(a, z) { const f = document.createDocumentFragment(); for (let i = a; i < z; i++) f.append(buildMsg(i)); return f; }
+function fillRange() { box.replaceChildren(range(state.start, state.end)); }
+function goTo(i, flash = true) {
+  const N = state.msgs.length;
+  i = Math.max(0, Math.min(i, N - 1));
+  if (i < state.start || i >= state.end) {
+    state.start = Math.max(0, i - (CH >> 1)); state.end = Math.min(N, state.start + CH); fillRange();
+  }
+  const n = box.querySelector(`[data-i="${i}"]`);
+  if (!n) return;
+  n.scrollIntoView({ block: 'center' });
+  if (flash) { n.classList.remove('flash'); void n.offsetWidth; n.classList.add('flash'); }
+}
+let ticking = false;
+box.addEventListener('scroll', () => {
+  if (ticking) return; ticking = true;
+  requestAnimationFrame(() => {
+    ticking = false;
+    const N = state.msgs.length;
+    if (box.scrollTop < 300 && state.start > 0) {
+      const h = box.scrollHeight, s = Math.max(0, state.start - CH);
+      box.prepend(range(s, state.start)); state.start = s;
+      box.scrollTop += box.scrollHeight - h;
+      const over = state.end - state.start - MAXW;
+      if (over > 0) { for (let k = 0; k < over; k++) box.lastElementChild.remove(); state.end -= over; }
+    } else if (box.scrollHeight - box.scrollTop - box.clientHeight < 300 && state.end < N) {
+      const e = Math.min(N, state.end + CH);
+      box.append(range(state.end, e)); state.end = e;
+      const over = state.end - state.start - MAXW;
+      if (over > 0) {
+        const h = box.scrollHeight;
+        for (let k = 0; k < over; k++) box.firstElementChild.remove();
+        box.scrollTop -= h - box.scrollHeight; state.start += over;
+      }
+    }
+  });
+});
+function firstVisible() {
+  for (const c of box.children) if (c.offsetTop + c.offsetHeight > box.scrollTop) return +c.dataset.i;
+  return state.start;
+}
+
+/* ---------- Lightbox ---------- */
+async function openLightbox(kind, name) {
+  try {
+    const u = await getUrl(name);
+    const e = kind === 'video' ? Object.assign(document.createElement('video'), { controls: true, autoplay: true }) : new Image();
+    e.src = u; $('#lbc').replaceChildren(e); $('#lb').hidden = false;
+  } catch { /* ignora */ }
+}
+const closeLb = () => { $('#lb').hidden = true; $('#lbc').replaceChildren(); };
+$('#lb').onclick = e => { if (e.target.id !== 'lbc' && e.target.tagName !== 'IMG' && e.target.tagName !== 'VIDEO') closeLb(); };
+$('#lbx').onclick = closeLb;
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!$('#lb').hidden) closeLb(); else if (!$('#panel').hidden) $('#panel').hidden = true;
+});
+
+/* ---------- Busca e filtros ---------- */
+function hlNode(text, q) {
+  const frag = document.createDocumentFragment();
+  if (!q) { frag.append(text); return frag; }
+  let n = '';
+  const map = [];
+  for (let i = 0; i < text.length; i++) { const c = norm(text[i]); for (let j = 0; j < c.length; j++) map.push(i); n += c; }
+  let pos = 0, last = 0, at;
+  while ((at = n.indexOf(q, pos)) >= 0) {
+    const a = map[at], z = map[at + q.length - 1] + 1;
+    if (a >= last) {
+      frag.append(text.slice(last, a));
+      frag.append(Object.assign(document.createElement('mark'), { textContent: text.slice(a, z) }));
+      last = z;
+    }
+    pos = at + q.length;
+  }
+  frag.append(text.slice(last));
+  return frag;
+}
+
+let searchTimer;
+function runSearch() {
+  const q = norm($('#q').value.trim()), who = $('#fWho').value, type = $('#fType').value;
+  const from = $('#fFrom').value ? new Date($('#fFrom').value + 'T00:00:00').getTime() : -Infinity;
+  const to = $('#fTo').value ? new Date($('#fTo').value + 'T23:59:59').getTime() : Infinity;
+  const hits = [];
+  for (let i = 0; i < state.msgs.length; i++) {
+    const m = state.msgs[i];
+    if (m.ts < from || m.ts > to) continue;
+    if (who && m.sender !== who) continue;
+    if (type === 'text' && m.type !== 'text') continue;
+    if (type === 'link' && !m.link) continue;
+    if (['image', 'video', 'audio', 'sticker', 'doc'].includes(type) && m.type !== type) continue;
+    if (q) { if (m.k === undefined) m.k = norm(m.text); if (!m.k.includes(q)) continue; }
+    hits.push(i);
+  }
+  const LIM = 600, res = $('#res');
+  const grid = !q && ['image', 'video'].includes(type);
+  res.className = grid ? 'grid' : '';
+  $('#cnt').textContent = hits.length + (hits.length === 1 ? ' resultado' : ' resultados') + (hits.length > LIM ? ` (mostrando os primeiros ${LIM}; refine a busca)` : '');
+  const frag = document.createDocumentFragment();
+  for (const i of hits.slice(0, LIM)) {
+    const m = state.msgs[i], r = el('div', 'r');
+    r.onclick = () => { if (matchMedia('(max-width:760px)').matches) $('#panel').hidden = true; goTo(i); };
+    if (m.media && ['image', 'video', 'sticker'].includes(m.type) && sources.has(nkey(m.media.name))) {
+      const t = m.type === 'video' ? document.createElement('video') : new Image();
+      if (m.type === 'video') t.preload = 'metadata';
+      r.append(t); lazy(r, () => getUrl(m.media.name).then(u => { t.src = m.type === 'video' ? u + '#t=0.1' : u; }).catch(() => { }));
+    }
+    const t = el('div', 't');
+    t.append(el('div', 'h', (m.sender || 'Sistema') + ' · ' + new Date(m.ts).toLocaleDateString('pt-BR') + ' ' + fmtTime(m.ts)));
+    const s = el('div', 's');
+    const label = m.media ? ({ image: '📷 ', video: '🎬 ', audio: '🎤 ', sticker: '🏷️ ', doc: '📄 ' }[m.type] || '') + (m.caption || m.media.name) : m.text;
+    s.append(hlNode(label.slice(0, 300), q));
+    t.append(s); r.append(t); frag.append(r);
+  }
+  res.replaceChildren(frag);
+}
+const schedule = () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 200); };
+['q', 'fWho', 'fType', 'fFrom', 'fTo'].forEach(id => $('#' + id).addEventListener('input', schedule));
+$('#bSearch').onclick = () => { const p = $('#panel'); p.hidden = !p.hidden; if (!p.hidden) { runSearch(); $('#q').focus(); } };
+$('#pClose').onclick = () => { $('#panel').hidden = true; };
+
+/* ---------- Cabeçalho e navegação ---------- */
+$('#jump').onchange = e => {
+  if (!e.target.value) return;
+  const t = new Date(e.target.value + 'T00:00:00').getTime();
+  let lo = 0, hi = state.msgs.length - 1, ans = hi;
+  while (lo <= hi) { const mid = (lo + hi) >> 1; if (state.msgs[mid].ts >= t) { ans = mid; hi = mid - 1; } else lo = mid + 1; }
+  goTo(ans);
+};
+function setMe(name, save = true) {
+  state.me = name; $('#me').value = name || '';
+  if (save) try { localStorage.setItem('wa-me:' + state.title, name || ''); } catch { /* sem storage */ }
+}
+$('#me').onchange = e => { const i = firstVisible(); setMe(e.target.value); fillRange(); goTo(i, false); };
+
+/* ---------- Carregar conversa ---------- */
+const setStatus = (t, err) => { const s = $('#status'); s.textContent = t; s.className = err ? 'err' : ''; };
+const tick = () => new Promise(r => setTimeout(r, 15));
+
+function guessTitle(chatName, hint) {
+  const a = /\b(?:com|with|con|avec|mit)\s+(.+?)\.txt$/i.exec(chatName);
+  if (a) return a[1].trim();
+  const b = /WhatsApp Chat\s*[-–]\s*(.+?)(?:\.txt)?$/i.exec(chatName) || /WhatsApp Chat\s*[-–]\s*(.+)$/i.exec(hint || '');
+  if (b) return b[1].trim();
+  if (hint) return hint;
+  return chatName.replace(/\.txt$/i, '');
+}
+
+async function load(files, hint) {
+  try {
+    sources.clear();
+    setStatus('Lendo arquivos…'); await tick();
+    for (const f of files) {
+      if (/\.zip$/i.test(f.name)) { hint = hint || f.name.replace(/\.zip$/i, ''); await addZip(f); } else addFile(f);
+    }
+    const txts = [...sources.values()].filter(s => /\.txt$/i.test(s.name));
+    if (!txts.length) throw new Error('Nenhum arquivo .txt de conversa foi encontrado.');
+    const chat = txts.find(s => /^_chat\.txt$/i.test(s.name)) || txts.find(s => /whatsapp|conversa/i.test(s.name)) || txts.sort((a, b) => b.size - a.size)[0];
+    setStatus('Interpretando mensagens…'); await tick();
+    const raw = await (await chat.getBlob()).text();
+    const msgs = parseChat(raw);
+    if (!msgs.length) throw new Error('Não consegui reconhecer o formato das mensagens em ' + chat.name + '.');
+    state.msgs = msgs;
+    const count = new Map();
+    for (const m of msgs) if (m.sender) count.set(m.sender, (count.get(m.sender) || 0) + 1);
+    state.senders = [...count.entries()].sort((a, b) => b[1] - a[1]).map(e => e[0]);
+    state.title = guessTitle(chat.name, hint);
+    showApp();
+    let saved = null; try { saved = localStorage.getItem('wa-me:' + state.title); } catch { /* sem storage */ }
+    if (saved !== null && (saved === '' || state.senders.includes(saved))) setMe(saved || null, false);
+    else askMe();
+    state.end = msgs.length; state.start = Math.max(0, state.end - CH);
+    fillRange(); box.scrollTop = box.scrollHeight;
+  } catch (err) {
+    console.error(err);
+    setStatus(err.message || String(err), true);
+  }
+}
+
+function showApp() {
+  $('#welcome').hidden = true; $('#app').hidden = false;
+  $('#title').textContent = state.title; $('#av').textContent = (state.title[0] || '?').toUpperCase();
+  const f = new Date(state.msgs[0].ts).toLocaleDateString('pt-BR'), l = new Date(state.msgs[state.msgs.length - 1].ts).toLocaleDateString('pt-BR');
+  const nm = state.msgs.filter(m => m.media).length;
+  $('#subt').textContent = `${state.msgs.length.toLocaleString('pt-BR')} mensagens · ${nm.toLocaleString('pt-BR')} mídias · ${f} a ${l}`;
+  const me = $('#me'); me.replaceChildren(new Option('(ninguém)', ''), ...state.senders.map(s => new Option(s, s)));
+  const who = $('#fWho'); who.replaceChildren(new Option('Todos', ''), ...state.senders.map(s => new Option(s, s)));
+  $('#q').value = ''; $('#fType').value = 'all'; $('#fFrom').value = ''; $('#fTo').value = '';
+  $('#jump').min = new Date(state.msgs[0].ts).toISOString().slice(0, 10);
+  $('#panel').hidden = true;
+}
+function askMe() {
+  setMe(null, false);
+  const b = $('#dlgb'); b.replaceChildren();
+  for (const s of state.senders.slice(0, 8)) {
+    const btn = el('button', 'btn ghost', s); btn.onclick = () => { setMe(s); $('#dlg').hidden = true; fillRange(); box.scrollTop = box.scrollHeight; };
+    b.append(btn);
+  }
+  const none = el('button', 'btn ghost', 'Nenhum deles (tudo à esquerda)'); none.onclick = () => { setMe(null); $('#dlg').hidden = true; };
+  b.append(none); $('#dlg').hidden = false;
+}
+
+/* ---------- Entradas: botões e arrastar/soltar ---------- */
+$('#bZip').onclick = () => $('#iZip').click();
+$('#bDir').onclick = () => $('#iDir').click();
+$('#bFiles').onclick = () => $('#iFiles').click();
+$('#iZip').onchange = e => { const f = [...e.target.files]; e.target.value = ''; if (f.length) load(f); };
+$('#iFiles').onchange = e => { const f = [...e.target.files]; e.target.value = ''; if (f.length) load(f); };
+$('#iDir').onchange = e => {
+  const f = [...e.target.files]; e.target.value = '';
+  if (f.length) load(f, (f[0].webkitRelativePath || '').split('/')[0]);
+};
+$('#bNew').onclick = () => {
+  for (const s of sources.values()) if (s.url) s.url.then(u => URL.revokeObjectURL(u)).catch(() => { });
+  sources.clear(); state.msgs = []; box.replaceChildren(); setStatus('');
+  $('#app').hidden = true; $('#welcome').hidden = false;
+};
+const drop = $('#drop');
+['dragenter', 'dragover'].forEach(t => document.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(t => document.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+document.addEventListener('drop', async e => {
+  if ($('#welcome').hidden) return;
+  const ents = [...e.dataTransfer.items].map(i => (i.webkitGetAsEntry ? i.webkitGetAsEntry() : null)).filter(Boolean);
+  const plain = [...e.dataTransfer.files];
+  const out = [];
+  const walk = async en => {
+    if (en.isFile) out.push(await new Promise((res, rej) => en.file(res, rej)));
+    else {
+      const rd = en.createReader(); let batch;
+      do { batch = await new Promise((res, rej) => rd.readEntries(res, rej)); for (const c of batch) await walk(c); } while (batch.length);
+    }
+  };
+  setStatus('Lendo pasta…');
+  try { for (const en of ents) await walk(en); } catch { /* usa fallback */ }
+  const files = out.length ? out : plain;
+  if (files.length) load(files, ents.length === 1 && ents[0].isDirectory ? ents[0].name : '');
+});
+})();
+</script>
+</body>
+</html>
