@@ -1,0 +1,5 @@
+Leitor de conversa do WhatsApp (offline)
+
+1. Dê dois cliques em leitor.html (Chrome, Edge ou Firefox).
+2. Selecione o .zip da exportação (ou a pasta descompactada), ou arraste para a página.
+3. Escolha quem é você na conversa. Tudo roda localmente, sem internet.
